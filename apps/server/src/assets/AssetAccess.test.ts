@@ -13,6 +13,8 @@ import {
 } from "@t3tools/contracts";
 import { PROJECT_FAVICON_FALLBACK_MARKER } from "@t3tools/shared/projectFavicon";
 import { MCP_APP_MAX_HTML_BYTES } from "@t3tools/shared/mcpApp";
+import { HTML_RENDER_DEFAULT_FONTS, htmlRenderTheme } from "@t3tools/shared/htmlRender";
+import { T3_CODE_DARK_THEME_COLORS } from "@t3tools/shared/themePalettes";
 import { describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -1276,6 +1278,54 @@ describe("AssetAccess", () => {
           expect(yield* resolveAsset(tampered, suffix.slice(separator + 1))).toBeNull();
         }
       }
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("signs html_render images of stored pages at the reader's width and theme", () =>
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      yield* fs.makeDirectory(config.attachmentsDir, { recursive: true });
+      const theme = htmlRenderTheme(T3_CODE_DARK_THEME_COLORS, "dark", HTML_RENDER_DEFAULT_FONTS);
+      const ids = {
+        html: "thread-1-00000000-0000-4000-8000-000000000041-html",
+        pdf: "thread-1-00000000-0000-4000-8000-000000000042-pdf",
+      };
+      for (const [extension, attachmentId] of Object.entries(ids)) {
+        yield* fs.writeFileString(
+          path.join(config.attachmentsDir, `${attachmentId}.${extension}`),
+          "page",
+        );
+      }
+      const missing = "thread-1-00000000-0000-4000-8000-000000000043-html";
+      for (const attachmentId of [ids.pdf, missing]) {
+        const error = yield* Effect.flip(
+          issueAssetUrl({
+            resource: { _tag: "html-render-image", attachmentId, width: 600, theme },
+          }),
+        );
+        expect(error._tag).toBe("AssetAttachmentNotFoundError");
+      }
+
+      const result = yield* issueAssetUrl({
+        resource: { _tag: "html-render-image", attachmentId: ids.html, width: 600, theme },
+      });
+      expect(result.relativeUrl.length).toBeLessThanOrEqual(4096);
+      const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+      const separator = suffix.indexOf("/");
+      const token = suffix.slice(0, separator);
+      expect(yield* resolveAsset(token, suffix.slice(separator + 1))).toEqual({
+        kind: "html-render-image",
+        path: path.join(config.attachmentsDir, `${ids.html}.html`),
+        width: 600,
+        theme,
+      });
+      const [payload, signature] = token.split(".");
+      const claims = JSON.parse(Buffer.from(payload!, "base64url").toString("utf8"));
+      claims.width = 1600;
+      const tampered = `${Buffer.from(JSON.stringify(claims)).toString("base64url")}.${signature}`;
+      expect(yield* resolveAsset(tampered, suffix.slice(separator + 1))).toBeNull();
     }).pipe(Effect.provide(layerTest)),
   );
 

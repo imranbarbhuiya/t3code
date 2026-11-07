@@ -13,6 +13,7 @@ import {
   AssetWorkspacePathValidationError,
   AssetWorkspaceResolutionError,
   AssetWorkspaceRootNormalizationError,
+  HtmlRenderImageTheme,
   SOURCE_CONTROL_MEDIA_ASSET,
   ThreadId,
   NativeAppIconReference,
@@ -158,6 +159,14 @@ const AssetClaimsSchema = Schema.Union([
   }),
   Schema.Struct({
     version: Schema.Literal(1),
+    kind: Schema.Literal("html-render-image"),
+    attachmentId: Schema.String,
+    width: Schema.Number,
+    theme: HtmlRenderImageTheme,
+    expiresAt: Schema.Number,
+  }),
+  Schema.Struct({
+    version: Schema.Literal(1),
     kind: Schema.Literal("tool-output-image"),
     threadId: ThreadId,
     itemId: TurnItemId,
@@ -194,6 +203,12 @@ export type ResolvedAsset =
       readonly kind: "bytes";
       readonly bytes: Uint8Array;
       readonly mimeType: string;
+    }
+  | {
+      readonly kind: "html-render-image";
+      readonly path: string;
+      readonly width: number;
+      readonly theme: typeof HtmlRenderImageTheme.Type;
     }
   | {
       readonly kind: "source-control-media";
@@ -800,6 +815,23 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       }
       break;
     }
+    case "html-render-image": {
+      const config = yield* ServerConfig.ServerConfig;
+      const attachmentPath =
+        parseAttachmentFileExtension(input.resource.attachmentId) === "html"
+          ? resolveAttachmentPathById({
+              attachmentsDir: config.attachmentsDir,
+              attachmentId: input.resource.attachmentId,
+            })
+          : null;
+      if (!attachmentPath) {
+        return yield* new AssetAttachmentNotFoundError({ resource: input.resource });
+      }
+      const { _tag, ...resource } = input.resource;
+      claims = { version: 1, kind: "html-render-image", ...resource, expiresAt };
+      fileName = "html-render.png";
+      break;
+    }
     case "tool-output-image": {
       const image = yield* readToolOutputImage(input.resource).pipe(
         Effect.mapError(
@@ -924,6 +956,22 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
           ...(claims.fileName !== undefined ? { fileName: claims.fileName } : {}),
           ...(claims.mimeType !== undefined ? { mimeType: claims.mimeType } : {}),
           ...(claims.renderIntent === "mcp-app" ? { renderIntent: "mcp-app" as const } : {}),
+        } satisfies ResolvedAsset)
+      : null;
+  }
+
+  if (claims.kind === "html-render-image") {
+    const config = yield* ServerConfig.ServerConfig;
+    const attachmentPath = resolveAttachmentPathById({
+      attachmentsDir: config.attachmentsDir,
+      attachmentId: claims.attachmentId,
+    });
+    return attachmentPath
+      ? ({
+          kind: "html-render-image",
+          path: attachmentPath,
+          width: claims.width,
+          theme: claims.theme,
         } satisfies ResolvedAsset)
       : null;
   }

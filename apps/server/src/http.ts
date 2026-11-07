@@ -31,6 +31,7 @@ import { OtlpTracer, OtlpSerialization } from "effect/observability";
 import * as ServerConfig from "./config.ts";
 import { ASSET_ROUTE_PREFIX, readMcpAppHtml, resolveAsset } from "./assets/AssetAccess.ts";
 import { sourceControlMediaResponse } from "./assets/sourceControlMediaResponse.ts";
+import * as HtmlRender from "./htmlRender/HtmlRender.ts";
 import { statMediaFile, streamMediaFile, type OpenMediaFile } from "./assets/MediaFile.ts";
 import {
   ATTACHMENT_UPLOAD_ROUTE_PREFIX,
@@ -431,6 +432,22 @@ export const layerAssetRoute = HttpRouter.add(
         contentType: asset.mimeType,
         headers: { "cache-control": "private, max-age=3600", "x-content-type-options": "nosniff" },
       });
+    }
+    if (asset.kind === "html-render-image") {
+      const htmlRender = yield* HtmlRender.HtmlRender;
+      return yield* htmlRender.image(asset).pipe(
+        Effect.map((png) =>
+          HttpServerResponse.uint8Array(png, {
+            contentType: "image/png",
+            headers: { "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
+          }),
+        ),
+        Effect.catch((cause) =>
+          Effect.logWarning("Failed to draw an HTML render image.", { cause }).pipe(
+            Effect.as(HttpServerResponse.text(cause.message, { status: 503 })),
+          ),
+        ),
+      );
     }
     if (asset.kind === "source-control-media") {
       return yield* sourceControlMediaResponse(asset, request.headers).pipe(

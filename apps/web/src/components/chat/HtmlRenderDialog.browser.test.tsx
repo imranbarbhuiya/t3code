@@ -1,3 +1,4 @@
+import { EnvironmentId } from "@t3tools/contracts";
 import { HTML_RENDER_DEFAULT_FONTS, htmlRenderTheme } from "@t3tools/shared/htmlRender";
 import { T3_CODE_DARK_THEME_COLORS } from "@t3tools/shared/themePalettes";
 import { expect, it, vi } from "vite-plus/test";
@@ -17,6 +18,7 @@ import { HtmlRenderDialog } from "./HtmlRenderDialog";
 const dialog = (
   <HtmlRenderDialog
     src="https://environment.test/page.html"
+    environmentId={EnvironmentId.make("environment")}
     htmlRender={{ attachmentId: "html", title: "Diagram", height: 400 }}
     onClose={() => {}}
   />

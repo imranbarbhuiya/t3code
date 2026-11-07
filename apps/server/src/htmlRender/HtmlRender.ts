@@ -5,6 +5,7 @@ import { isNetworkPath } from "@t3tools/shared/path";
 import {
   clampHtmlRenderHeight,
   HTML_RENDER_COLUMN_WIDTH,
+  HTML_RENDER_MAX_FIT_HEIGHT,
   HTML_RENDER_MAX_TITLE_LENGTH,
   HTML_RENDER_MEASURE_FONTS,
   HTML_RENDER_MEASURE_WIDTHS,
@@ -12,6 +13,7 @@ import {
   htmlRenderThemeFragment,
   injectHtmlRenderBootstrap,
   type HtmlRenderReference,
+  type HtmlRenderTheme,
 } from "@t3tools/shared/htmlRender";
 import {
   T3_CODE_DARK_THEME_COLORS,
@@ -24,6 +26,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import type { PlatformError } from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
@@ -176,8 +179,27 @@ export class HtmlRender extends Context.Service<
       | PreviewBrowserHost.PreviewBrowserHostError
       | HeadlessChrome.HtmlRenderBrowserError
     >;
+    /** Starts the headless browser install when it is missing, and fails until it is ready. */
+    readonly imageRenderer: Effect.Effect<void, PreviewBrowserError>;
+    /** A 2x PNG of a published page, as the reader sees it at `width`. */
+    readonly image: (input: {
+      readonly path: string;
+      readonly width: number;
+      readonly theme: HtmlRenderTheme;
+    }) => Effect.Effect<
+      Uint8Array,
+      | PreviewBrowserError
+      | PreviewBrowserHost.PreviewBrowserHostError
+      | HeadlessChrome.HtmlRenderBrowserError
+      | PlatformError
+    >;
   }
 >()("t3/htmlRender/HtmlRender") {}
+
+type PreviewBrowserError =
+  | PreviewBrowser.PreviewBrowserInstallError
+  | PreviewBrowser.PreviewBrowserInstallingError
+  | PreviewBrowser.PreviewBrowserUnsupportedError;
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   png: "image/png",
@@ -596,7 +618,35 @@ const make = Effect.gen(function* () {
     } satisfies HtmlPreview;
   });
 
-  return HtmlRender.of({ prepare, publish, preview });
+  const image = Effect.fn("HtmlRender.image")(function* (input: {
+    readonly path: string;
+    readonly width: number;
+    readonly theme: HtmlRenderTheme;
+  }) {
+    const html = yield* fileSystem.readFileString(input.path);
+    const executable = yield* previewBrowser.executable;
+    const screenshot = yield* launching(executable, (noSandbox) =>
+      HeadlessChrome.captureHtmlScreenshot({
+        executable,
+        noSandbox,
+        html,
+        width: input.width,
+        urlFragment: htmlRenderThemeFragment(input.theme),
+        appearance: input.theme.appearance,
+        scale: 2,
+        maxHeight: HTML_RENDER_MAX_FIT_HEIGHT,
+      }).pipe(Effect.provideContext(services)),
+    );
+    return Buffer.from(screenshot.png, "base64");
+  });
+
+  return HtmlRender.of({
+    prepare,
+    publish,
+    preview,
+    imageRenderer: Effect.asVoid(previewBrowser.executable),
+    image,
+  });
 });
 
 export const layer = Layer.effect(HtmlRender, make);
