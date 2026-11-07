@@ -4,7 +4,9 @@ import { assert, describe, expect, it } from "@effect/vitest";
 import { EnvironmentId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { htmlRenderTheme } from "@t3tools/shared/htmlRender";
 import { symlinksSupported } from "@t3tools/shared/testing/symlinks";
+import { T3_CODE_DARK_THEME_COLORS } from "@t3tools/shared/themePalettes";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -543,6 +545,38 @@ fs.createReadStream(null, { fd: 3 }).on("end", quit).on("data", (chunk) => {
         }
       }).pipe(Effect.provide(layerHtmlRender(executable)));
     }),
+  );
+
+  it.live("draws images at twice the reader's width, unless the page is too tall for it", (ctx) =>
+    Effect.gen(function* () {
+      const executable = (yield* HostProcess.Environment)[TEST_BROWSER_ENV];
+      if (!executable) return ctx.skip(`Set ${TEST_BROWSER_ENV} to run this test.`);
+      yield* Effect.gen(function* () {
+        const htmlRender = yield* HtmlRender.HtmlRender;
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const directory = yield* fs.makeTempDirectoryScoped({ prefix: "t3-html-render-image-" });
+        const theme = htmlRenderTheme(T3_CODE_DARK_THEME_COLORS, "dark");
+        const pngSize = (png: Uint8Array) => {
+          const view = new DataView(png.buffer, png.byteOffset);
+          return { width: view.getUint32(16), height: view.getUint32(20) };
+        };
+        for (const [pageHeight, expected] of [
+          [400, { width: 600, height: 800 }],
+          [9_000, { width: 300, height: 9_000 }],
+        ] as const) {
+          const page = path.join(directory, `${pageHeight}.html`);
+          yield* fs.writeFileString(
+            page,
+            yield* htmlRender.prepare(
+              `<style>html{padding:0}</style><div style="height:${pageHeight}px"></div>`,
+            ),
+          );
+          const png = yield* htmlRender.image({ path: page, width: 300, theme });
+          expect(pngSize(png)).toEqual(expected);
+        }
+      }).pipe(Effect.provide(layerHtmlRender(executable)));
+    }).pipe(Effect.scoped),
   );
 
   it.live("keeps every local file but the page itself out of the browser", (ctx) =>

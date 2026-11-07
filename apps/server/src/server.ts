@@ -94,6 +94,7 @@ import * as PreviewAgentActivity from "./preview/PreviewAgentActivity.ts";
 import * as DesktopBrowserChannel from "./preview/DesktopBrowserChannel.ts";
 import * as ServerBrowserStream from "./preview/ServerBrowserStream.ts";
 import * as PreviewBrowser from "./preview/PreviewBrowser.ts";
+import * as HtmlRender from "./htmlRender/HtmlRender.ts";
 import * as ProcessRunner from "./processRunner.ts";
 import * as GitManager from "./git/GitManager.ts";
 import * as EnvironmentTheme from "./environmentTheme.ts";
@@ -771,6 +772,12 @@ const layerRuntimeDependencies = layerRuntimeCoreDependencies.pipe(
   Layer.provideMerge(RemoteOpenTargets.layer),
   Layer.provideMerge(DirectEndpoints.layer),
   Layer.provideMerge(ServerLifecycleEvents.layer),
+  // The asset route draws html_render images per request.
+  Layer.provideMerge(
+    HtmlRender.layer.pipe(
+      Layer.provide(Layer.merge(PreviewBrowser.layer, McpProviderSessions.layer)),
+    ),
+  ),
   Layer.provide(NetService.layer),
 );
 
