@@ -11,6 +11,16 @@ import { ToolActivityNativeAppReference } from "./providerRuntime.ts";
 import { EnvironmentThemeId } from "./server.ts";
 
 const ASSET_PATH_MAX_LENGTH = 1024;
+export const HTML_RENDER_IMAGE_MIN_WIDTH = 240;
+export const HTML_RENDER_IMAGE_MAX_WIDTH = 1600;
+
+export const HtmlRenderImageTheme = Schema.Struct({
+  appearance: Schema.Literals(["light", "dark"]),
+  variables: Schema.Record(
+    Schema.String.check(Schema.isPattern(/^--[a-z0-9-]{1,64}$/)),
+    Schema.String.check(Schema.isMaxLength(512)),
+  ).check(Schema.isMaxProperties(64)),
+});
 
 /**
  * The wire tag of a source control host's credentialed media. It names GitHub because GitHub had
@@ -49,6 +59,15 @@ export const AssetResource = Schema.Union([
     /** Defaults to download; viewers may request inline after checking the type is safe. */
     disposition: Schema.optionalKey(Schema.Literals(["inline", "attachment"])),
     renderIntent: Schema.optionalKey(Schema.Literal("mcp-app")),
+  }),
+  // A PNG of an html_render page, drawn by the server at the reader's width and theme.
+  Schema.TaggedStruct("html-render-image", {
+    attachmentId: TrimmedNonEmptyString.check(Schema.isMaxLength(256)),
+    width: NonNegativeInt.check(
+      Schema.isGreaterThanOrEqualTo(HTML_RENDER_IMAGE_MIN_WIDTH),
+      Schema.isLessThanOrEqualTo(HTML_RENDER_IMAGE_MAX_WIDTH),
+    ),
+    theme: HtmlRenderImageTheme,
   }),
   Schema.TaggedStruct("tool-output-image", {
     threadId: ThreadId,
@@ -319,6 +338,18 @@ export class AssetSigningKeyLoadError extends Schema.TaggedError<AssetSigningKey
   }
 }
 
+export class AssetImageRendererUnavailableError extends Schema.TaggedError<AssetImageRendererUnavailableError>()(
+  "AssetImageRendererUnavailableError",
+  {
+    resource: AssetResource,
+    detail: Schema.String,
+  },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
 // The tag predates the rename and stays: clients on either side of an update decode it.
 export class AssetSourceControlMediaUrlValidationError extends Schema.TaggedError<AssetSourceControlMediaUrlValidationError>()(
   "AssetGitHubMediaUrlValidationError",
@@ -344,5 +375,6 @@ export const AssetAccessError = Schema.Union([
   AssetProjectFaviconNotFoundError,
   AssetSourceControlMediaUrlValidationError,
   AssetSigningKeyLoadError,
+  AssetImageRendererUnavailableError,
 ]);
 export type AssetAccessError = typeof AssetAccessError.Type;
