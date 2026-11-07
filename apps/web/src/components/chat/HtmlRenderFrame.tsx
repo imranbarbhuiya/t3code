@@ -16,6 +16,7 @@ import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { HtmlRenderDialog } from "./HtmlRenderDialog";
+import { HtmlRenderImageButton } from "./HtmlRenderImageButton";
 import { observeResize } from "~/lib/observeResize";
 
 const MIN_URL_LIFE_MS = 5 * 60_000;
@@ -79,6 +80,14 @@ export function HtmlRenderFrame(props: {
             onFullscreenChange={onFullscreenChange}
           />
           <div className="absolute end-2 top-2 flex gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/html-render:opacity-100 pointer-coarse:opacity-100">
+            <HtmlRenderImageButton
+              environmentId={props.environmentId}
+              attachmentId={attachmentId}
+              title={title}
+              width={width}
+              variant="glass"
+              tooltipSide="left"
+            />
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -110,6 +119,8 @@ export function HtmlRenderFrame(props: {
           {expandedSrc !== null ? (
             <HtmlRenderDialog
               src={expandedSrc}
+              environmentId={props.environmentId}
+              attachmentId={attachmentId}
               title={title}
               threadRef={props.threadRef}
               onClose={() => setExpandedSrc(null)}
