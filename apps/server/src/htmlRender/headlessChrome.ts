@@ -45,6 +45,8 @@ const MAX_CONSOLE_MESSAGES = 20;
 const MAX_CONSOLE_TEXT_CHARS = 500;
 const VIEWPORT_HEIGHT = 800;
 const MAX_CAPTURE_HEIGHT = 4_000;
+// Chrome cannot rasterize a capture taller than its 16384px texture limit.
+const MAX_CAPTURE_PIXELS = 16_000;
 const CAPTURE_TIMEOUT = "20 seconds";
 // Chrome blocks file access; images arrive inlined. Browser-only .localhost permits secure contexts and HTTP resources.
 // publicProxy blocks local networks; pinning the main frame and forbidding popups keeps captures on the page.
@@ -506,8 +508,16 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       return Math.max(0, Math.ceil(measured.result.value));
     });
 
-    const screenshot = (height: number) =>
-      send(
+    const screenshot = Effect.fnUntraced(function* (height: number, scale: number) {
+      if (scale !== 1) {
+        yield* send(
+          "Emulation.setDeviceMetricsOverride",
+          { width, height: VIEWPORT_HEIGHT, deviceScaleFactor: scale, mobile: false },
+          Ignored,
+          sessionId,
+        );
+      }
+      const { data } = yield* send(
         "Page.captureScreenshot",
         {
           format: "png",
@@ -516,7 +526,9 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
         },
         Schema.Struct({ data: Schema.String }),
         sessionId,
-      ).pipe(Effect.map(({ data }) => data));
+      );
+      return data;
+    });
 
     const consoleMessages = (): ReadonlyArray<ConsoleMessage> =>
       events.omittedConsoleMessages === 0
@@ -570,6 +582,8 @@ export const captureHtmlScreenshot = Effect.fn("headlessChrome.captureHtmlScreen
     readonly width: number;
     readonly urlFragment: string;
     readonly appearance: ThemeAppearance;
+    readonly scale?: number;
+    readonly maxHeight?: number;
   }) {
     const path = yield* Path.Path;
     const directory = yield* scratchDirectory;
@@ -580,8 +594,15 @@ export const captureHtmlScreenshot = Effect.fn("headlessChrome.captureHtmlScreen
     });
     const page = yield* browser.openPage(input.width, input.appearance);
     const contentHeight = yield* page.load(pageBody(input.html), input.urlFragment);
-    const capturedHeight = Math.max(1, Math.min(contentHeight, MAX_CAPTURE_HEIGHT));
-    const png = yield* page.screenshot(capturedHeight);
+    const capturedHeight = Math.max(
+      1,
+      Math.min(contentHeight, input.maxHeight ?? MAX_CAPTURE_HEIGHT, MAX_CAPTURE_PIXELS),
+    );
+    const scale = Math.max(
+      1,
+      Math.min(input.scale ?? 1, Math.floor(MAX_CAPTURE_PIXELS / capturedHeight)),
+    );
+    const png = yield* page.screenshot(capturedHeight, scale);
     return {
       png,
       contentHeight,

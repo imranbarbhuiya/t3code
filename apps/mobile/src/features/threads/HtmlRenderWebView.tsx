@@ -19,15 +19,16 @@ import { mobileHtmlRenderTheme } from "../../lib/htmlRenderTheme";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { useAssetUrlState, useRefreshAssetUrl } from "../../state/assets";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { useHtmlRenderImageShare } from "./useHtmlRenderImageShare";
 
 const ROW_BOTTOM_MARGIN = 8;
-const FULL_SCREEN_GUTTER = 16;
+export const HTML_RENDER_FULL_SCREEN_GUTTER = 16;
 
 export function htmlRenderRowHeight(frameHeight: number) {
   return frameHeight + ROW_BOTTOM_MARGIN;
 }
 
-function useHtmlRenderTheme() {
+export function useHtmlRenderTheme() {
   const { themeId, themeAppearance, themeVariables, systemColorsActive } =
     useAppearancePreferences();
   return mobileHtmlRenderTheme({
@@ -113,7 +114,7 @@ export function HtmlRenderWebView(props: {
           ? { flex: 1 }
           : {
               flex: 1,
-              paddingHorizontal: FULL_SCREEN_GUTTER,
+              paddingHorizontal: HTML_RENDER_FULL_SCREEN_GUTTER,
               backgroundColor: theme.variables["--background"],
             }
       }
@@ -178,6 +179,8 @@ export function ThreadHtmlRender(props: {
   readonly iconColor: ColorValue;
 }) {
   const navigation = useNavigation();
+  const theme = useHtmlRenderTheme();
+  const imageShare = useHtmlRenderImageShare(props.environmentId);
   const { attachmentId, title } = props.render;
   const height = htmlRenderFrameHeight(props.render, props.frameWidth);
   const fileName = htmlRenderFileName(title);
@@ -239,30 +242,54 @@ export function ThreadHtmlRender(props: {
           </View>
         )}
         {uri !== null && !failed ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${title}`}
-            hitSlop={8}
-            className="absolute right-1.5 top-1.5 h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-card/80"
-            onPress={() =>
-              navigation.navigate("ThreadAttachment", {
-                environmentId: String(props.environmentId),
-                threadId: String(props.threadId),
-                attachmentId,
-                name: fileName,
-                mimeType: "text/html",
-                sizeBytes: "0",
-                htmlRender: "1",
-              })
-            }
-          >
-            <SymbolView
-              name="arrow.up.left.and.arrow.down.right"
-              size={12}
-              tintColor={props.iconColor}
-              type="monochrome"
-            />
-          </Pressable>
+          <View className="absolute right-1.5 top-1.5 flex-row gap-2">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Share ${title} as an image`}
+              accessibilityState={{ busy: imageShare.sharing }}
+              disabled={imageShare.sharing}
+              hitSlop={8}
+              className="h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-card/80"
+              onPress={() =>
+                imageShare.share({ attachmentId, title, width: props.frameWidth, theme })
+              }
+            >
+              {imageShare.sharing ? (
+                <AppActivityIndicator size="small" />
+              ) : (
+                <SymbolView
+                  name="square.and.arrow.up"
+                  size={12}
+                  tintColor={props.iconColor}
+                  type="monochrome"
+                />
+              )}
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${title}`}
+              hitSlop={8}
+              className="h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-card/80"
+              onPress={() =>
+                navigation.navigate("ThreadAttachment", {
+                  environmentId: String(props.environmentId),
+                  threadId: String(props.threadId),
+                  attachmentId,
+                  name: fileName,
+                  mimeType: "text/html",
+                  sizeBytes: "0",
+                  htmlRender: "1",
+                })
+              }
+            >
+              <SymbolView
+                name="arrow.up.left.and.arrow.down.right"
+                size={12}
+                tintColor={props.iconColor}
+                type="monochrome"
+              />
+            </Pressable>
+          </View>
         ) : null}
       </View>
     </View>
