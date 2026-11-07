@@ -6,7 +6,7 @@ import {
   formatAttachmentSize,
 } from "@t3tools/client-runtime/state/attachments";
 import { useRef, useState } from "react";
-import { View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 
 import { AppBar, type AppBarMenu } from "../../components/ui/AppBar";
 import { FilePreviewModal, type FilePreviewSource } from "../../components/ui/FilePreviewModal";
@@ -19,6 +19,8 @@ import { useEnvironmentServerConfig } from "../../state/entities";
 import { useRefreshAssetUrl } from "../../state/assets";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { HTML_RENDER_FULL_SCREEN_GUTTER, useHtmlRenderTheme } from "../threads/HtmlRenderWebView";
+import { useHtmlRenderImageShare } from "../threads/useHtmlRenderImageShare";
 import { isZipFile, ZipArchiveView } from "./ZipArchiveView";
 import { AttachmentDocumentBody, nativeViewerKind } from "./AttachmentDocumentBody";
 
@@ -58,6 +60,9 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
     environmentId,
     attachment: localAttachment,
   });
+  const htmlRenderTheme = useHtmlRenderTheme();
+  const imageShare = useHtmlRenderImageShare(environmentId);
+  const { width: windowWidth } = useWindowDimensions();
   const [nativeOpen, setNativeOpen] = useState(false);
   const nativeKind = nativeViewerKind(document.kind);
   const [nativeViewer, setNativeViewer] = useState<"pending" | "open" | "unavailable" | null>(
@@ -151,6 +156,21 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
           icon: "square.and.arrow.up",
           inline: false,
           onPress: () => void share(),
+        } as const)
+      : null,
+    params.htmlRender === "1"
+      ? ({
+          id: "share-image",
+          title: imageShare.sharing ? "Preparing image…" : "Share as image",
+          icon: "photo",
+          inline: false,
+          onPress: () =>
+            imageShare.share({
+              attachmentId: params.attachmentId,
+              title: params.name.replace(/\.html$/, ""),
+              width: windowWidth - 2 * HTML_RENDER_FULL_SCREEN_GUTTER,
+              theme: htmlRenderTheme,
+            }),
         } as const)
       : null,
     uri

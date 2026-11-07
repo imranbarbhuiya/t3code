@@ -1,4 +1,4 @@
-import type { ScopedThreadRef } from "@t3tools/contracts";
+import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import {
   HTML_RENDER_COLUMN_WIDTH,
   htmlRenderFrameHeight,
@@ -12,9 +12,11 @@ import { observeResize } from "~/lib/observeResize";
 import { HtmlRenderDocument } from "../files/BrowserDocumentFrame";
 import { Button } from "../ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
+import { HtmlRenderImageButton } from "./HtmlRenderImageButton";
 
 export function HtmlRenderDialog(props: {
   readonly src: string;
+  readonly environmentId: EnvironmentId;
   readonly htmlRender: HtmlRenderReference;
   readonly threadRef?: ScopedThreadRef | undefined;
   readonly onClose: () => void;
@@ -47,16 +49,25 @@ export function HtmlRenderDialog(props: {
         <DialogTitle className="sr-only">Expanded {title} preview</DialogTitle>
         {/* 1144px is the widest the server measures a page; pages are written for the reply column and stretch badly beyond it. */}
         <div className="relative w-[min(92vw,1176px)]">
-          <Button
-            ref={closeButtonRef}
-            aria-label="Close"
-            size="icon-xs"
-            variant="media-close"
-            className="absolute right-0 -top-10 z-20"
-            onClick={props.onClose}
-          >
-            <XIcon />
-          </Button>
+          <div className="absolute right-0 -top-10 z-20 flex gap-2">
+            <HtmlRenderImageButton
+              environmentId={props.environmentId}
+              attachmentId={props.htmlRender.attachmentId}
+              title={title}
+              width={width / zoom}
+              variant="media-close"
+              tooltipSide="bottom"
+            />
+            <Button
+              ref={closeButtonRef}
+              aria-label="Close"
+              size="icon-xs"
+              variant="media-close"
+              onClick={props.onClose}
+            >
+              <XIcon />
+            </Button>
+          </div>
           <div className="max-h-[min(86vh,calc(100vh-160px))] overflow-y-auto overscroll-contain rounded-lg bg-background p-4 shadow-2xl ring-1 ring-border/70">
             <div ref={measureBox}>
               <div style={{ zoom, height }}>
