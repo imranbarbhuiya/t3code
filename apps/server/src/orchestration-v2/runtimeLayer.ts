@@ -57,6 +57,8 @@ import * as ThreadLaunchService from "./ThreadLaunchService.ts";
 import * as ThreadForkService from "./ThreadForkService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
+import * as BoardService from "../board/BoardService.ts";
+import * as BoardWatcher from "../board/BoardWatcher.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 
 export const layerEventInfrastructure = Layer.mergeAll(
@@ -390,6 +392,10 @@ export const layerProduction = Layer.mergeAll(
   layerManagedProjectFoldersProvided,
   layerThreadLaunchProvided,
   layerScheduledTaskProvided,
+  BoardWatcher.layer.pipe(
+    Layer.provideMerge(BoardService.layer),
+    Layer.provide(Layer.mergeAll(layerThreadManagementProvided, TextGeneration.layer)),
+  ),
   layerScratchThreadPromotionProvided,
   layerSecretRequestsProvided,
   GuestShareService.layer.pipe(
