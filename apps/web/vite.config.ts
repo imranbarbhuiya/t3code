@@ -139,7 +139,12 @@ const browserTestProject = {
     browser: {
       enabled: true,
       headless: true,
-      provider: playwright(),
+      // Fork: a machine without the pinned Playwright browser can point at another Chromium.
+      provider: playwright(
+        process.env.T3CODE_BROWSER_TEST_CHROMIUM
+          ? { launchOptions: { executablePath: process.env.T3CODE_BROWSER_TEST_CHROMIUM } }
+          : undefined,
+      ),
       instances: [{ browser: "chromium" }],
       screenshotFailures: false,
       commands: {
