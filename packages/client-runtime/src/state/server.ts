@@ -1497,6 +1497,10 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:server:scheduled-tasks:live",
       tag: WS_METHODS.scheduledTasksSubscribe,
     }),
+    boardLive: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+      label: "environment-data:server:board:live",
+      tag: WS_METHODS.boardSubscribe,
+    }),
     // A cold transcript scan is measured in seconds, so keep the result around
     // long enough that switching windows or re-rendering does not rescan. With
     // nothing to show yet, the server's last scan answers first, then a plain
@@ -1769,6 +1773,18 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.scheduledTasksDelete,
       scheduler: configScheduler,
       concurrency: configConcurrency,
+    }),
+    updateBoardItem: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:board:update-item",
+      tag: WS_METHODS.boardUpdateItem,
+    }),
+    deleteBoardItem: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:board:delete-item",
+      tag: WS_METHODS.boardDeleteItem,
+    }),
+    setBoardWatch: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:board:set-watch",
+      tag: WS_METHODS.boardSetWatch,
     }),
     // Deliberately not on the config lane: run-now blocks until the run is
     // dispatched, and a slow run must not stall settings/keybinding/provider

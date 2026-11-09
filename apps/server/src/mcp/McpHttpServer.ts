@@ -84,6 +84,8 @@ import {
   DeviceStandardToolkit,
 } from "./toolkits/device/tools.ts";
 import * as HtmlHandlers from "./toolkits/html/handlers.ts";
+import * as BoardHandlers from "./toolkits/board/handlers.ts";
+import { BoardToolkit } from "./toolkits/board/tools.ts";
 import { HtmlPreviewTool, HtmlPreviewToolkit, HtmlRenderToolkit } from "./toolkits/html/tools.ts";
 import { requestUrl } from "../requestUrl.ts";
 
@@ -1324,6 +1326,7 @@ export const layerTools = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
+  toolkitRegistration(BoardToolkit, BoardHandlers.layer),
 );
 
 const layerToolExposure = Layer.effect(
