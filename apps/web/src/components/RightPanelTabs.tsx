@@ -110,6 +110,7 @@ import { preventThumbButtonFocus, takeThumbButtonNavigation } from "./preview/th
 import { PierreEntryIcon } from "./chat/PierreEntryIcon";
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
+import { BoardGlyph, BoardTabIcon } from "./board/BoardIcons";
 import { observeResize } from "~/lib/observeResize";
 import { surfaceShortcutKey } from "~/lib/surfaceShortcutKey";
 
@@ -125,6 +126,8 @@ export interface RightPanelTabsProps {
   layoutControls?: ReactNode;
   surfaces: readonly RightPanelSurface[];
   environmentId: EnvironmentId | null;
+  /** The thread this panel belongs to; the Board tab counts its board's open items. */
+  threadId?: ThreadId | null;
   activeSurfaceId: string | null;
   pendingSurfaceIds: ReadonlySet<string>;
   previewSessions: Readonly<Record<string, PreviewSessionSnapshot>>;
@@ -151,6 +154,8 @@ export interface RightPanelTabsProps {
   onAddDevice: () => void;
   /** Absent where side chats are not offered. */
   onAddSideChat?: (() => void) | undefined;
+  /** Absent where the board is not offered. */
+  onAddBoard?: (() => void) | undefined;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
@@ -188,6 +193,7 @@ const SURFACE_DISABLED_REASONS = {
   pullRequests: msg("This thread has no linked items."),
   device: msg("Devices are only available from a thread."),
   sideChat: msg("Side chats start after the first message."),
+  board: msg("The board is only available from a thread."),
 } as const;
 
 // Closed keepMounted popups must stop blocking shortcuts once their exit transition ends.
@@ -213,6 +219,7 @@ const SURFACE_UNAVAILABLE_HINTS = {
   pullRequests: msg("No linked items available."),
   device: msg("Available from a thread."),
   sideChat: msg("Available after the first message."),
+  board: msg("Available from a thread."),
 } as const;
 
 type TabContextMenuAction =
@@ -335,6 +342,8 @@ function RightPanelEmptyState(props: {
   onAddDevice: () => void;
   /** Absent where side chats are not offered. */
   onAddSideChat?: (() => void) | undefined;
+  /** Absent where the board is not offered. */
+  onAddBoard?: (() => void) | undefined;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
@@ -418,6 +427,19 @@ function RightPanelEmptyState(props: {
             disabledReason:
               props.sideChatDisabledReason ?? messages(SURFACE_UNAVAILABLE_HINTS.sideChat),
             onClick: props.onAddSideChat,
+          },
+        ]
+      : []),
+    ...(props.onAddBoard
+      ? [
+          {
+            label: msg("Board"),
+            description: msg("What the agents pinned for you: decisions, questions, heads-ups."),
+            icon: BoardGlyph,
+            shortcut: "O",
+            available: true,
+            disabledReason: messages(SURFACE_UNAVAILABLE_HINTS.board),
+            onClick: props.onAddBoard,
           },
         ]
       : []),
@@ -610,6 +632,8 @@ function surfaceTitle(
     case "issue":
       // A git host numbers its issues; a tracker with keys of its own, such as Linear, names them.
       return /^\d+$/.test(surface.key) ? `#${surface.key}` : surface.key;
+    case "board":
+      return resolve(msg("Board"));
     case "device":
       return surface.title ?? surface.target?.name ?? resolve(msg("Device"));
     case "side-chat":
@@ -665,6 +689,7 @@ function SurfaceIcon({
   previewCapturedUrl,
   theme,
   environmentId,
+  threadId,
   pullRequestStatusSeed,
 }: {
   surface: RightPanelSurface;
@@ -672,6 +697,7 @@ function SurfaceIcon({
   previewCapturedUrl: string | null;
   theme: "light" | "dark";
   environmentId: EnvironmentId | null;
+  threadId: ThreadId | null;
   pullRequestStatusSeed: PullRequestTabStatusSeed | undefined;
 }) {
   switch (surface.kind) {
@@ -704,6 +730,8 @@ function SurfaceIcon({
       return <PullRequestGlyph.link className="size-3 shrink-0" />;
     case "issue":
       return <IssueSurfaceIcon surface={surface} environmentId={environmentId} />;
+    case "board":
+      return <BoardTabIcon environmentId={environmentId} threadId={threadId} />;
     case "side-chat":
       return <SideChatTabIcon environmentId={environmentId} threadId={surface.threadId} />;
     case "device":
@@ -937,6 +965,7 @@ function RightPanelTab(
     previewCapturedUrl: string | null;
     theme: "light" | "dark";
     environmentId: EnvironmentId | null;
+    threadId: ThreadId | null;
     pullRequestStatusSeed: PullRequestTabStatusSeed | undefined;
     renaming: boolean;
     canRename: boolean;
@@ -976,6 +1005,7 @@ function RightPanelTab(
           previewCapturedUrl={props.previewCapturedUrl}
           theme={props.theme}
           environmentId={props.environmentId}
+          threadId={props.threadId}
           pullRequestStatusSeed={props.pullRequestStatusSeed}
         />
         {props.pending ? (
@@ -1238,6 +1268,18 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           },
         ]
       : []),
+    ...(props.onAddBoard
+      ? [
+          {
+            label: msg("Board"),
+            icon: BoardGlyph,
+            shortcut: "O",
+            available: true,
+            disabledReason: messages(SURFACE_DISABLED_REASONS.board),
+            onClick: props.onAddBoard,
+          },
+        ]
+      : []),
   ] as const;
 
   const handleAddSurfaceMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1481,6 +1523,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                     previewCapturedUrl={favicon.capturedUrl}
                     theme={resolvedTheme}
                     environmentId={props.environmentId}
+                    threadId={props.threadId ?? null}
                     pullRequestStatusSeed={props.pullRequestStatusSeeds?.[surface.id]}
                     renaming={renamingDevice === surface.id}
                     canRename={props.onRenameDevice !== undefined}
@@ -1643,6 +1686,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             onAddPullRequests={props.onAddPullRequests}
             onAddDevice={props.onAddDevice}
             onAddSideChat={props.onAddSideChat}
+            onAddBoard={props.onAddBoard}
             browserAvailable={props.browserAvailable}
             terminalAvailable={props.terminalAvailable}
             diffAvailable={props.diffAvailable}
