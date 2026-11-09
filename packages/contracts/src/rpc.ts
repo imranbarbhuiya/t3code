@@ -387,6 +387,15 @@ import {
 } from "./scheduledTask.ts";
 import { SecretRequestAnswerInput, SecretRequestError } from "./secretRequest.ts";
 import {
+  BoardDeleteItemInput,
+  BoardError,
+  BoardItem,
+  BoardSetWatchInput,
+  BoardSnapshot,
+  BoardSubscribeInput,
+  BoardUpdateItemInput,
+} from "./board.ts";
+import {
   ProjectCloneActionInput,
   ProjectCloneActionResult,
   ProjectCloneListEvent,
@@ -552,6 +561,10 @@ export const WS_METHODS = {
   serverGetUsageSummary: "server.getUsageSummary",
   serverRefreshUsageRates: "server.refreshUsageRates",
 
+  boardSubscribe: "board.subscribe",
+  boardUpdateItem: "board.updateItem",
+  boardDeleteItem: "board.deleteItem",
+  boardSetWatch: "board.setWatch",
   scheduledTasksSubscribe: "scheduledTasks.subscribe",
   scheduledTasksUpsert: "scheduledTasks.upsert",
   scheduledTasksSetEnabled: "scheduledTasks.setEnabled",
@@ -2022,6 +2035,31 @@ const WsSubscribeServerLifecycleRpc = Rpc.make(WS_METHODS.subscribeServerLifecyc
   stream: true,
 });
 
+const WsBoardSubscribeRpc = Rpc.make(WS_METHODS.boardSubscribe, {
+  payload: BoardSubscribeInput,
+  success: BoardSnapshot,
+  error: Schema.Union([BoardError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+const WsBoardUpdateItemRpc = Rpc.make(WS_METHODS.boardUpdateItem, {
+  payload: BoardUpdateItemInput,
+  success: BoardItem,
+  error: Schema.Union([BoardError, EnvironmentAuthorizationError]),
+});
+
+const WsBoardDeleteItemRpc = Rpc.make(WS_METHODS.boardDeleteItem, {
+  payload: BoardDeleteItemInput,
+  success: Schema.Void,
+  error: Schema.Union([BoardError, EnvironmentAuthorizationError]),
+});
+
+const WsBoardSetWatchRpc = Rpc.make(WS_METHODS.boardSetWatch, {
+  payload: BoardSetWatchInput,
+  success: Schema.Void,
+  error: Schema.Union([BoardError, EnvironmentAuthorizationError]),
+});
+
 const WsScheduledTasksSubscribeRpc = Rpc.make(WS_METHODS.scheduledTasksSubscribe, {
   payload: ScheduledTaskListInput,
   success: ScheduledTaskListResult,
@@ -2172,6 +2210,10 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerGetUsageSummaryRpc,
   WsServerRefreshUsageRatesRpc,
   WsServerSignalProcessRpc,
+  WsBoardSubscribeRpc,
+  WsBoardUpdateItemRpc,
+  WsBoardDeleteItemRpc,
+  WsBoardSetWatchRpc,
   WsScheduledTasksSubscribeRpc,
   WsScheduledTasksUpsertRpc,
   WsScheduledTasksSetEnabledRpc,
