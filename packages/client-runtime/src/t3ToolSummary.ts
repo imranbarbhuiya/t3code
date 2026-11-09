@@ -1583,6 +1583,57 @@ export function summarizeT3ToolCalls(
       }
       break;
     }
+    case "board-post": {
+      const count = selected.length;
+      label = done
+        ? resolve(
+            msg(
+              "{count, plural, one {Pinned {count} board item} other {Pinned {count} board items}}",
+              { count },
+            ),
+          )
+        : resolve(
+            msg(
+              "{count, plural, one {Tried to pin {count} board item} other {Tried to pin {count} board items}}",
+              { count },
+            ),
+          );
+      break;
+    }
+    case "board-list": {
+      const count = selected.length;
+      label = done
+        ? resolve(
+            msg(
+              "{count, plural, one {Read the board {count} time} other {Read the board {count} times}}",
+              { count },
+            ),
+          )
+        : resolve(
+            msg(
+              "{count, plural, one {Tried to read the board {count} time} other {Tried to read the board {count} times}}",
+              { count },
+            ),
+          );
+      break;
+    }
+    case "board-update": {
+      const count = selected.length;
+      label = done
+        ? resolve(
+            msg(
+              "{count, plural, one {Updated {count} board item} other {Updated {count} board items}}",
+              { count },
+            ),
+          )
+        : resolve(
+            msg(
+              "{count, plural, one {Tried to update {count} board item} other {Tried to update {count} board items}}",
+              { count },
+            ),
+          );
+      break;
+    }
   }
   return { label, failedCount };
 }
