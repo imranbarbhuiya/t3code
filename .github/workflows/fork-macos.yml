@@ -1,0 +1,106 @@
+name: Fork macOS build
+
+# Builds the fork branch into an ad-hoc signed Apple silicon DMG and publishes
+# it as the latest GitHub release. The `-preview.` version leaves the build
+# without an update feed, so the app never updates itself onto upstream.
+
+on:
+  push:
+    branches: [fork]
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Apple silicon runner label
+        default: macos-26
+        type: string
+
+concurrency:
+  group: fork-macos
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.repository != 'pingdotgg/t3code'
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    timeout-minutes: 90
+    steps:
+      # Anonymous fetch, like upstream: checkout's credential cleanup fails on
+      # the orphaned gitlinks in .repos.
+      - name: Checkout
+        shell: bash
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git sparse-checkout set --no-cone '/*' '!/.repos/'
+          git checkout --detach FETCH_HEAD
+
+      - name: Setup dependencies
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          install-args: --filter=t3... --filter=@t3tools/web... --filter=@t3tools/desktop... --filter=@t3tools/scripts...
+
+      - name: Set version and public T3 Connect configuration
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(node -p "require('./apps/desktop/package.json').version")"
+          version="${base}-preview.$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          node scripts/update-release-package-versions.ts "$version"
+          cp .env.example .env
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build DMG
+        env:
+          T3CODE_TELEMETRY_CHANNEL: dev
+        run: vp run dist:desktop:dmg:arm64 --build-version "${{ steps.version.outputs.version }}" --verbose
+
+      # Upstream's release check: opens the packaged app on a seeded T3 home.
+      - name: Launch check
+        shell: bash
+        run: |
+          set -euo pipefail
+          mount="$RUNNER_TEMP/dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" release/*.dmg
+          trap 'hdiutil detach "$mount" -force >/dev/null || true' EXIT
+          app=$(ls -d "$mount"/*.app)
+          executable=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Contents/Info.plist")
+          node scripts/smoke-desktop-app.ts --artifacts-dir "$RUNNER_TEMP/launch-check" --executable "$app/Contents/MacOS/$executable"
+
+      - name: Upload launch check output
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: launch-check
+          path: ${{ runner.temp }}/launch-check
+          if-no-files-found: ignore
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="fork-v${VERSION}"
+          upstream_sha="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" --jq '.merge_base_commit.sha')"
+          {
+            echo "Upstream: https://github.com/pingdotgg/t3code/commit/${upstream_sha}"
+            echo
+            echo "Fork commits:"
+            gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" \
+              --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:9]))"'
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$tag" release/*.dmg \
+            --target "$GITHUB_SHA" --title "T3 Code fork $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" --latest
+          gh release list --limit 100 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("fork-v"))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' |
+            while read -r old; do gh release delete "$old" --yes --cleanup-tag; done
