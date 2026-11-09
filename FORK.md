@@ -53,3 +53,16 @@ opening the official app again; never run both at once.
 
 T3 Connect works through the public identifiers in `.env.example`, except
 desktop passkey sign-in, which needs the official signing team.
+
+## Fork features
+
+- **Copy or share an HTML preview as an image.** Buttons on inline `html_render`
+  previews.
+- **Board.** A right-panel tab (⌘⌥O) where agents pin actions, questions for
+  later, heads-ups and notes with `board_post`, `board_list` and
+  `board_update`. Items roll up to the top thread of a subagent or delegate
+  tree and live in `board.sqlite` in the state folder, outside the shared
+  migrations. "Heads-up checks" is a per-thread switch: after a turn settles,
+  the text generation model rereads the new conversation and pins what you
+  might miss. `apps/server/src/provider/agentContextBudget.json` holds fork
+  values, so a sync that changes tool text needs it re-measured.
