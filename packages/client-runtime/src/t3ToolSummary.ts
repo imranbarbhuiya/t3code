@@ -475,6 +475,15 @@ export function summarizeT3ToolCalls(
     case "capabilities":
       label = phrase("Checked", "check", `orchestration capabilities ${times}`);
       break;
+    case "board-post":
+      label = phrase("Pinned", "pin", quantity(selected.length, "board item"));
+      break;
+    case "board-list":
+      label = phrase("Read", "read", `the board ${times}`);
+      break;
+    case "board-update":
+      label = phrase("Updated", "update", quantity(selected.length, "board item"));
+      break;
   }
   return { label, failedCount };
 }

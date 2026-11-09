@@ -102,6 +102,7 @@ import { previewBridge } from "./preview/previewBridge";
 import { PierreEntryIcon } from "./chat/PierreEntryIcon";
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
+import { BoardGlyph, BoardTabIcon } from "./board/BoardIcons";
 import { observeResize } from "~/lib/observeResize";
 import { surfaceShortcutKey } from "~/lib/surfaceShortcutKey";
 
@@ -117,6 +118,8 @@ export interface RightPanelTabsProps {
   layoutControls?: ReactNode;
   surfaces: readonly RightPanelSurface[];
   environmentId: EnvironmentId | null;
+  /** The thread this panel belongs to; the Board tab counts its board's open items. */
+  threadId?: ThreadId | null;
   activeSurfaceId: string | null;
   pendingSurfaceIds: ReadonlySet<string>;
   previewSessions: Readonly<Record<string, PreviewSessionSnapshot>>;
@@ -143,6 +146,8 @@ export interface RightPanelTabsProps {
   onAddDevice: () => void;
   /** Absent where side chats are not offered. */
   onAddSideChat?: (() => void) | undefined;
+  /** Absent where the board is not offered. */
+  onAddBoard?: (() => void) | undefined;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
@@ -180,6 +185,7 @@ const SURFACE_DISABLED_REASONS = {
   pullRequests: "No linked pull requests are available for this thread.",
   device: "Devices are only available from a thread.",
   sideChat: "Side chats start after the first message.",
+  board: "The board is only available from a thread.",
 } as const;
 
 // Closed keepMounted popups must stop blocking shortcuts once their exit transition ends.
@@ -205,6 +211,7 @@ const SURFACE_UNAVAILABLE_HINTS = {
   pullRequests: "No linked pull requests available.",
   device: "Available from a thread.",
   sideChat: "Available after the first message.",
+  board: "Available from a thread.",
 } as const;
 
 type TabContextMenuAction =
@@ -324,6 +331,8 @@ function RightPanelEmptyState(props: {
   onAddDevice: () => void;
   /** Absent where side chats are not offered. */
   onAddSideChat?: (() => void) | undefined;
+  /** Absent where the board is not offered. */
+  onAddBoard?: (() => void) | undefined;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
@@ -404,6 +413,19 @@ function RightPanelEmptyState(props: {
             available: props.sideChatAvailable && !props.sideChatDisabledReason,
             disabledReason: props.sideChatDisabledReason ?? SURFACE_UNAVAILABLE_HINTS.sideChat,
             onClick: props.onAddSideChat,
+          },
+        ]
+      : []),
+    ...(props.onAddBoard
+      ? [
+          {
+            label: "Board",
+            description: "What the agents pinned for you: decisions, questions, heads-ups.",
+            icon: BoardGlyph,
+            shortcut: "O",
+            available: true,
+            disabledReason: SURFACE_UNAVAILABLE_HINTS.board,
+            onClick: props.onAddBoard,
           },
         ]
       : []),
@@ -590,6 +612,8 @@ function surfaceTitle(
       return `#${surface.number}`;
     case "pull-requests":
       return "Pull requests";
+    case "board":
+      return "Board";
     case "device":
       return surface.title ?? surface.target?.name ?? "Device";
     case "side-chat":
@@ -645,6 +669,7 @@ function SurfaceIcon({
   previewCapturedUrl,
   theme,
   environmentId,
+  threadId,
   pullRequestStatusSeed,
 }: {
   surface: RightPanelSurface;
@@ -652,6 +677,7 @@ function SurfaceIcon({
   previewCapturedUrl: string | null;
   theme: "light" | "dark";
   environmentId: EnvironmentId | null;
+  threadId: ThreadId | null;
   pullRequestStatusSeed: PullRequestTabStatusSeed | undefined;
 }) {
   switch (surface.kind) {
@@ -682,6 +708,8 @@ function SurfaceIcon({
       );
     case "pull-requests":
       return <PullRequestGlyph.link className="size-3 shrink-0" />;
+    case "board":
+      return <BoardTabIcon environmentId={environmentId} threadId={threadId} />;
     case "side-chat":
       return <SideChatTabIcon environmentId={environmentId} threadId={surface.threadId} />;
     case "device":
@@ -879,6 +907,7 @@ function RightPanelTab(
     previewCapturedUrl: string | null;
     theme: "light" | "dark";
     environmentId: EnvironmentId | null;
+    threadId: ThreadId | null;
     pullRequestStatusSeed: PullRequestTabStatusSeed | undefined;
     renaming: boolean;
     canRename: boolean;
@@ -916,6 +945,7 @@ function RightPanelTab(
           previewCapturedUrl={props.previewCapturedUrl}
           theme={props.theme}
           environmentId={props.environmentId}
+          threadId={props.threadId}
           pullRequestStatusSeed={props.pullRequestStatusSeed}
         />
         {props.pending ? (
@@ -1163,6 +1193,18 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           },
         ]
       : []),
+    ...(props.onAddBoard
+      ? [
+          {
+            label: "Board",
+            icon: BoardGlyph,
+            shortcut: "O",
+            available: true,
+            disabledReason: SURFACE_DISABLED_REASONS.board,
+            onClick: props.onAddBoard,
+          },
+        ]
+      : []),
   ] as const;
 
   const handleAddSurfaceMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1380,6 +1422,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                     previewCapturedUrl={favicon.capturedUrl}
                     theme={resolvedTheme}
                     environmentId={props.environmentId}
+                    threadId={props.threadId ?? null}
                     pullRequestStatusSeed={props.pullRequestStatusSeeds?.[surface.id]}
                     renaming={renamingDevice === surface.id}
                     canRename={props.onRenameDevice !== undefined}
@@ -1538,6 +1581,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             onAddPullRequests={props.onAddPullRequests}
             onAddDevice={props.onAddDevice}
             onAddSideChat={props.onAddSideChat}
+            onAddBoard={props.onAddBoard}
             browserAvailable={props.browserAvailable}
             terminalAvailable={props.terminalAvailable}
             diffAvailable={props.diffAvailable}

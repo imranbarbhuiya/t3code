@@ -22,6 +22,10 @@ Ordinary coding tasks need no T3 tools.
 
 - Answer data with a trend or comparison with a chart, and show any visual the user asks for here: pass the path to an HTML file, or inline HTML to \`html_preview\`, then \`html_render\`. A screenshot on disk or a text description does not show it. Never start a server for it. Page tools write only on user request. Never use them to show results. Asked for an image to post, send, or use elsewhere: a \`.png\` file and its path, never \`html_render\`.
 - Never use \`preview_*\` unasked to verify or show your own edit. Use them when the current request asks for browser work, including recording edits, or names a page or tab. Do not repeat preview calls from an earlier turn. Public pages: web fetch or search unless browser work was asked; then preview tools only, no web fetch. Close a tab you opened before you reply, unless the user asked for it or uses it.`,
+  `### Board
+
+- The user reads a board beside the chat after being away. Pin to it with \`board_post\`, one item per thing: an action only they can take, a question that can wait, a tradeoff you chose or a result that may be off (\`heads_up\`), or something to remember. Blocking questions still go to your question tool.
+- Do not pin routine progress or what your reply already says plainly. When an item stops needing the user, mark it done with \`board_update\`.`,
 ];
 
 export const T3_CODE_ORCHESTRATION_INSTRUCTIONS = `
