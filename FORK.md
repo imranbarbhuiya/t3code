@@ -66,3 +66,6 @@ desktop passkey sign-in, which needs the official signing team.
   the text generation model rereads the new conversation and pins what you
   might miss. `apps/server/src/provider/agentContextBudget.json` holds fork
   values, so a sync that changes tool text needs it re-measured.
+- **Run in background.** A running Claude command shows "Run in background"
+  in its live row. The command keeps running as background work, its result
+  reaches the agent when it ends, and a message waiting behind it goes in now.
