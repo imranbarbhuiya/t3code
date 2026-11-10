@@ -11242,6 +11242,126 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       ),
   );
 
+  it.effect("a command the user moves to the background keeps its row and command", () =>
+    Effect.gen(function* () {
+      const backgrounded: Array<string> = [];
+      const harness = yield* makeWakeHarnessWithOptions({
+        backgroundTasks: (toolUseId) =>
+          Effect.sync(() => {
+            backgrounded.push(toolUseId);
+            return true;
+          }),
+      });
+      yield* harness.runtime.startTurn(
+        makeClaudeTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now: yield* DateTime.now,
+          attemptId: RunAttemptId.make("attempt-claude-manual-background"),
+          text: "Run the build.",
+          attachments: [],
+        }),
+      );
+      yield* harness.offerAndWait(
+        claudeSdkFrame({
+          type: "assistant",
+          message: {
+            model: "claude-sonnet-4-6",
+            id: "msg_manual_background",
+            type: "message",
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: WAKE_TOOL_USE_ID,
+                name: "Bash",
+                input: { command: "vp run build", description: "Build" },
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+          uuid: "manual-background-launch",
+          session_id: WAKE_NATIVE_SESSION,
+        }),
+      );
+      yield* harness.offerAndWait(
+        claudeSdkFrame({
+          type: "system",
+          subtype: "task_started",
+          task_id: WAKE_TASK_ID,
+          tool_use_id: WAKE_TOOL_USE_ID,
+          description: "Build",
+          is_backgrounded: false,
+          task_type: "local_bash",
+          uuid: "manual-background-started",
+          session_id: WAKE_NATIVE_SESSION,
+        }),
+      );
+
+      const moved = yield* harness.runtime.backgroundCommand!({
+        providerThread: harness.providerThread,
+        nativeItemId: WAKE_TOOL_USE_ID,
+      });
+      assert.isTrue(moved);
+      assert.deepEqual(backgrounded, [WAKE_TOOL_USE_ID]);
+
+      yield* harness.offerAndWait(
+        claudeSdkFrame({
+          type: "user",
+          message: {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: WAKE_TOOL_USE_ID,
+                content: `Command was manually backgrounded by user with ID: ${WAKE_TASK_ID}.`,
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+          uuid: "manual-background-result",
+          session_id: WAKE_NATIVE_SESSION,
+        }),
+      );
+      yield* harness.offerAndWait(
+        claudeSdkFrame({
+          type: "system",
+          subtype: "background_tasks_changed",
+          tasks: [{ task_id: WAKE_TASK_ID, task_type: "local_bash", description: "Build" }],
+          uuid: "manual-background-roster",
+          session_id: WAKE_NATIVE_SESSION,
+        }),
+      );
+      const command = harness.events.find(
+        (event) =>
+          event.type === "turn_item.updated" &&
+          event.turnItem.type === "command_execution" &&
+          event.turnItem.nativeItemRef?.nativeId === WAKE_TOOL_USE_ID,
+      );
+      assert.equal(command?.type, "turn_item.updated");
+      if (command?.type !== "turn_item.updated") return;
+      yield* harness.until(() =>
+        providerThreadRosterEvents(harness.events).some(
+          (event) => (event.providerThread.pendingBackgroundTasks?.length ?? 0) > 0,
+        ),
+      );
+      assert.deepInclude(
+        providerThreadRosterEvents(harness.events).at(-1)?.providerThread
+          .pendingBackgroundTasks?.[0],
+        { taskId: WAKE_TASK_ID, command: "vp run build", itemId: command.turnItem.id },
+      );
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          IdAllocator.layer,
+          McpProviderSessions.layer,
+          NodeServices.layer,
+          NodeCrypto.layer,
+        ),
+      ),
+    ),
+  );
+
   it.effect("holds only the background tasks the agent marks awaited, until they end", () =>
     Effect.gen(function* () {
       const harness = yield* makeWakeHarness;
