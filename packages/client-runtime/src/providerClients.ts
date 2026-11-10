@@ -41,6 +41,16 @@ export const providerClients = makeProviderClientRegistry([
     modelFamilies: ["Claude "],
     acpRegistryAgentIds: ["claude-acp"],
     settingsSchema: ClaudeSettings,
+    environmentFields: [
+      {
+        name: "CLAUDE_CODE_OAUTH_TOKEN",
+        label: "Claude token",
+        description:
+          "Optional. A token from claude setup-token. Overrides this instance's sign-in.",
+        placeholder: "Paste token",
+        sensitive: true,
+      },
+    ],
   },
   cursorClient,
   grokClient,

@@ -178,6 +178,11 @@ export const ProviderInstallCancelInput = Schema.Struct({
 });
 export type ProviderInstallCancelInput = typeof ProviderInstallCancelInput.Type;
 
+export const ClaudeSetupTokenResult = Schema.Struct({
+  token: Schema.String.check(Schema.isPattern(/^sk-ant-oat\d+-[\w-]{20,}$/u)),
+});
+export type ClaudeSetupTokenResult = typeof ClaudeSetupTokenResult.Type;
+
 /** Safe setup failure text. Never include OAuth codes, URLs, or native token data. */
 export class ProviderSetupError extends Schema.TaggedError<ProviderSetupError>()(
   "ProviderSetupError",
