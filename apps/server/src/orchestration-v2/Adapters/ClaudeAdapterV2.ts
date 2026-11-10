@@ -129,6 +129,7 @@ import {
   type ProviderThreadId,
   type RunId,
   type ThreadId,
+  type TurnItemId,
   resolveIdleCompaction,
   isDelegatedAppThread,
 } from "@t3tools/contracts";
@@ -5396,6 +5397,15 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           string,
           { readonly fiber: Fiber.Fiber<void>; readonly stop: Deferred.Deferred<void> }
         >();
+        // A command moved to the background mid-run keeps its row and command in the roster.
+        const foregroundCommandTasks = new Map<
+          string,
+          {
+            readonly itemId: TurnItemId;
+            readonly sourceThreadId: ThreadId;
+            readonly command: string;
+          }
+        >();
         // Waits for the tail's last read so its output lands before the call settles.
         const stopTaskOutputTail = (toolUseId: string) =>
           Effect.suspend(() => {
@@ -9433,7 +9443,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             for (const entry of roster) {
               const task = parseClaudeBackgroundTaskEntry(entry, monitorTasks);
               if (task !== null) {
-                nextTasks.push(task);
+                nextTasks.push({ ...task, ...foregroundCommandTasks.get(task.taskId) });
               }
             }
             yield* replacePendingBackgroundTasks(input.nativeThreadId, nextTasks);
@@ -9476,6 +9486,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             });
             rosterChanged = true;
           } else if (message.type === "system" && message.subtype === "task_notification") {
+            foregroundCommandTasks.delete(message.task_id);
             yield* endClaudeMonitorTasks((taskId) => taskId === message.task_id);
             const removed = yield* clearPendingBackgroundTask(
               input.nativeThreadId,
@@ -10243,6 +10254,21 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 message.tool_use_id === undefined
                   ? undefined
                   : findToolCall(context, message.tool_use_id);
+              const foregroundCommand =
+                message.is_backgrounded !== true &&
+                tailedCall?.classification.itemType === "command_execution"
+                  ? firstStringInputField(tailedCall.input, ["command"])
+                  : undefined;
+              if (tailedCall !== undefined && foregroundCommand !== undefined) {
+                foregroundCommandTasks.set(message.task_id, {
+                  itemId: idAllocator.derive.turnItemFromProviderItem({
+                    driver: CLAUDE_PROVIDER,
+                    nativeItemId: tailedCall.nativeItemId,
+                  }),
+                  sourceThreadId: tailedCall.threadId,
+                  command: foregroundCommand,
+                });
+              }
               if (
                 liveQuery.taskOutputRoot !== undefined &&
                 message.task_type === "local_bash" &&
@@ -12983,6 +13009,32 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                   new ProviderAdapter.ProviderAdapterProtocolError({
                     driver: CLAUDE_PROVIDER,
                     detail: "Workflow stop request failed",
+                    cause,
+                  }),
+              ),
+            );
+          }),
+          backgroundCommand: Effect.fn("ClaudeAdapterV2.backgroundCommand")(function* ({
+            providerThread,
+            nativeItemId,
+          }) {
+            const liveQuery = yield* Ref.get(queryContext);
+            if (
+              liveQuery === null ||
+              liveQuery.stopping ||
+              liveQuery.nativeThreadId !== providerThread.nativeThreadRef?.nativeId
+            ) {
+              return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+                driver: CLAUDE_PROVIDER,
+                detail: "This provider thread has no live Claude query",
+              });
+            }
+            return yield* liveQuery.query.backgroundTasks(nativeItemId).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProviderAdapter.ProviderAdapterProtocolError({
+                    driver: CLAUDE_PROVIDER,
+                    detail: "Background command request failed",
                     cause,
                   }),
               ),

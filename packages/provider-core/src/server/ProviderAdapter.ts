@@ -714,6 +714,11 @@ export interface ProviderAdapterV2SessionRuntime {
     readonly providerThread: OrchestrationV2ProviderThread;
     readonly taskId: string;
   }) => Effect.Effect<void, ProviderAdapterV2Error>;
+  /** Moves a running foreground command to the background; false when it was not in the foreground. */
+  readonly backgroundCommand?: (input: {
+    readonly providerThread: OrchestrationV2ProviderThread;
+    readonly nativeItemId: string;
+  }) => Effect.Effect<boolean, ProviderAdapterV2Error>;
   /**
    * Marks or unmarks background tasks the agent will resume from, using the ids the agent saw.
    * Ids not running on this provider thread come back unmatched and change nothing.

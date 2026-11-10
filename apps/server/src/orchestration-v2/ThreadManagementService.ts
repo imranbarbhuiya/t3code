@@ -15,6 +15,8 @@ import {
   MessageId,
   OrchestrationV2StopWorkflowError,
   type OrchestrationV2StopWorkflowInput,
+  OrchestrationV2BackgroundCommandError,
+  type OrchestrationV2BackgroundCommandInput,
   OrchestrationV2ForceStopThreadError,
   type OrchestrationV2ForceStopThreadInput,
   type OrchestrationV2ForceStopThreadResult,
@@ -471,6 +473,10 @@ export interface ThreadManagementServiceShape {
   readonly stopWorkflow: (
     input: OrchestrationV2StopWorkflowInput,
   ) => Effect.Effect<void, OrchestrationV2StopWorkflowError>;
+  /** Moves a command running in the foreground of a turn to the background. */
+  readonly backgroundCommand: (
+    input: OrchestrationV2BackgroundCommandInput,
+  ) => Effect.Effect<void, OrchestrationV2BackgroundCommandError>;
   /**
    * Kills the thread's agent for a provider that no longer responds, then ends
    * its turn as interrupted. Never kills a process other working threads share.
@@ -1439,6 +1445,45 @@ const make = Effect.gen(function* () {
     (effect, input) => effect.pipe((effect) => threadDispatch.withLock(input.threadId, effect)),
   );
 
+  const backgroundCommand: ThreadManagementServiceShape["backgroundCommand"] = Effect.fn(
+    "ThreadManagementService.backgroundCommand",
+  )(function* (input) {
+    const fail = (reason: OrchestrationV2BackgroundCommandError["reason"], cause?: unknown) =>
+      new OrchestrationV2BackgroundCommandError({
+        ...input,
+        reason,
+        ...(cause === undefined ? {} : { cause }),
+      });
+    const item = yield* orchestrator
+      .getTurnItem(input)
+      .pipe(Effect.mapError((cause) => fail("unavailable", cause)));
+    if (item === null || item.type !== "command_execution" || item.status !== "running") {
+      return yield* fail("not-running");
+    }
+    const nativeItemId = item.nativeItemRef?.nativeId;
+    if (nativeItemId == null || nativeItemId.length === 0) return yield* fail("unsupported");
+    const records = yield* orchestrator
+      .getThreadRecords(input.threadId, ["providerThreads"])
+      .pipe(Effect.mapError((cause) => fail("unavailable", cause)));
+    const providerThread = records.providerThreads.find(
+      (candidate) =>
+        candidate.id === item.providerThreadId && candidate.appThreadId === input.threadId,
+    );
+    if (records.thread.deletedAt !== null || providerThread?.providerSessionId == null) {
+      return yield* fail("unavailable");
+    }
+    const runtime = yield* sessions
+      .get(providerThread.providerSessionId)
+      .pipe(Effect.mapError((cause) => fail("unavailable", cause)));
+    if (Option.isNone(runtime)) return yield* fail("unavailable");
+    if (runtime.value.backgroundCommand === undefined) return yield* fail("unsupported");
+    const moved = yield* runtime.value.backgroundCommand({ providerThread, nativeItemId }).pipe(
+      Effect.timeout("15 seconds"),
+      Effect.mapError((cause) => fail("failed", cause)),
+    );
+    if (!moved) return yield* fail("not-running");
+  });
+
   const awaitBackgroundTasks: ThreadManagementServiceShape["awaitBackgroundTasks"] = Effect.fn(
     "ThreadManagementService.awaitBackgroundTasks",
   )(function* (input) {
@@ -1647,6 +1692,7 @@ const make = Effect.gen(function* () {
     interruptThread,
     stopDelegatedTasks,
     stopWorkflow,
+    backgroundCommand,
     forceStopThread,
     awaitBackgroundTasks,
     getThreadEventSequence: orchestrator.getThreadEventSequence,
