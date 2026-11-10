@@ -106,6 +106,7 @@ import { TextGeneratorsSettings } from "./TextGeneratorsSettings";
 import { UsageProviderSettings } from "./UsageProviderSettings";
 import { ProviderSetupSection, readAntigravityAuthMethod } from "./ProviderSetupSection";
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
+import { ClaudeTokenFromEnvironmentRow } from "./ClaudeTokenFromEnvironmentRow";
 import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSection";
 import { readCodexSetupMode } from "./CodexSetupSection.logic";
 import { providerClients } from "./providerDriverMeta";
@@ -1333,6 +1334,13 @@ function ProviderInstanceRow({
   const gt = useGT();
   const allProjects = useProjects();
   const secretSources = useSecretSources(environmentId);
+  const { environments } = useEnvironments();
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const primaryEnvironment =
+    primaryEnvironmentId !== null && primaryEnvironmentId !== environmentId
+      ? environments.find((environment) => environment.environmentId === primaryEnvironmentId)
+      : undefined;
+  const claudeTokenSource = primaryEnvironment ?? null;
   const acpProjects =
     mode === "editor" && liveProvider?.driver === "acpRegistry"
       ? allProjects.filter((project) => project.environmentId === environmentId)
@@ -1442,6 +1450,18 @@ function ProviderInstanceRow({
             instanceId={instanceId}
             provider={liveProvider}
             readOnly={readOnly}
+          />
+        ) : mode === "editor" &&
+          !readOnly &&
+          driver === "claudeAgent" &&
+          claudeTokenSource !== null ? (
+          <ClaudeTokenFromEnvironmentRow
+            sourceEnvironmentId={claudeTokenSource.environmentId}
+            sourceLabel={claudeTokenSource.label}
+            environment={instance.environment}
+            onEnvironmentChange={(environment) =>
+              actions.updateInstance(instanceId, instance, { ...instance, environment })
+            }
           />
         ) : mode === "editor" &&
           !readOnly &&

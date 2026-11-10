@@ -5,6 +5,7 @@ import {
   isProviderDriverKind,
   ProviderDriverKind,
 } from "@t3tools/contracts";
+import { msg } from "gt-i18n";
 import { acpRegistryClient } from "@t3tools/provider-acp-registry/client";
 import { makeProviderClientRegistry, type ProviderIcon } from "@t3tools/provider-core/client";
 import { modelShortName } from "@t3tools/provider-core/modelShortName";
@@ -41,6 +42,17 @@ export const providerClients = makeProviderClientRegistry([
     modelFamilies: ["Claude "],
     acpRegistryAgentIds: ["claude-acp"],
     settingsSchema: ClaudeSettings,
+    environmentFields: [
+      {
+        name: "CLAUDE_CODE_OAUTH_TOKEN",
+        label: msg("Claude token"),
+        description: msg(
+          "Optional. A token from claude setup-token. Overrides this instance's sign-in.",
+        ),
+        placeholder: msg("Paste token"),
+        sensitive: true,
+      },
+    ],
   },
   cursorClient,
   grokClient,
