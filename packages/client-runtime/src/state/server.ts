@@ -1436,6 +1436,10 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:provider:auth-logout",
       tag: WS_METHODS.providerAuthLogout,
     }),
+    mintClaudeSetupToken: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:provider:claude-setup-token",
+      tag: WS_METHODS.providerClaudeSetupToken,
+    }),
     providerInstallState: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:provider:install-state",
       tag: WS_METHODS.providerInstallSubscribe,

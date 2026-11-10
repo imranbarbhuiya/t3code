@@ -51,6 +51,7 @@ import {
   ProviderInstallState,
   ProviderSetupError,
   ProviderSetupInput,
+  ClaudeSetupTokenResult,
 } from "./providerSetup.ts";
 
 import {
@@ -464,6 +465,7 @@ export const WS_METHODS = {
   providerAuthRemoveMethod: "provider.auth.removeMethod",
   providerAuthLogout: "provider.auth.logout",
   providerAuthSubscribe: "provider.auth.subscribe",
+  providerClaudeSetupToken: "provider.claude.setupToken",
   providerInstallStart: "provider.install.start",
   providerInstallCancel: "provider.install.cancel",
   providerInstallSubscribe: "provider.install.subscribe",
@@ -779,6 +781,12 @@ const WsProviderAuthSubscribeRpc = Rpc.make(WS_METHODS.providerAuthSubscribe, {
   success: ProviderAuthState,
   error: ProviderSetupRpcError,
   stream: true,
+});
+
+const WsProviderClaudeSetupTokenRpc = Rpc.make(WS_METHODS.providerClaudeSetupToken, {
+  payload: ProviderSetupInput,
+  success: ClaudeSetupTokenResult,
+  error: ProviderSetupRpcError,
 });
 
 const WsProviderInstallStartRpc = Rpc.make(WS_METHODS.providerInstallStart, {
@@ -2167,6 +2175,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsProviderAuthRemoveMethodRpc,
   WsProviderAuthLogoutRpc,
   WsProviderAuthSubscribeRpc,
+  WsProviderClaudeSetupTokenRpc,
   WsProviderInstallStartRpc,
   WsProviderInstallCancelRpc,
   WsProviderInstallSubscribeRpc,
