@@ -1,6 +1,12 @@
 import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
 import { WorkLogButton, WorkLogList, WorkLogRow } from "./WorkLog";
-import type { WorktreeSetupSnapshot } from "@t3tools/contracts";
+import { useAtomValue } from "@effect/atom-react";
+import type {
+  EnvironmentId,
+  ThreadId,
+  TurnItemId,
+  WorktreeSetupSnapshot,
+} from "@t3tools/contracts";
 import { type ToolActivityIcon } from "@t3tools/contracts";
 import {
   liveThoughtLine,
@@ -18,7 +24,10 @@ import { workEntryDisplayIndicatesToolFailure } from "../../session-logic";
 import ChatMarkdown from "../ChatMarkdown";
 import { assetMediaActionsSource } from "./ChatMarkdownMedia";
 import { Minimize2Icon, XIcon } from "lucide-react";
-import { Button } from "../ui/button";
+import { Button, InlineButton } from "../ui/button";
+import { toastManager } from "../ui/toast";
+import { orchestrationEnvironment } from "../../state/orchestration";
+import { useAtomCommand } from "../../state/use-atom-command";
 import { getVirtualizedScrollFadeClassName } from "../ui/scroll-area";
 import {
   liveWorkEntryLabel,
@@ -581,13 +590,22 @@ export function LiveWorkEntryTimelineRow({
       ? liveThoughtLine((row.thought.detail ?? "").slice(0, THOUGHT_PREVIEW_SOURCE_MAX_LENGTH))
       : "";
   const thoughtIsStatus = thoughtLine !== "" && row.entry === row.thought;
+  // Only Claude can move a command that is already running to the background.
+  const backgroundableCommand =
+    item?.type === "command_execution" &&
+    item.status === "running" &&
+    item.monitor !== true &&
+    item.nativeItemRef?.driver === "claudeAgent"
+      ? item
+      : null;
 
-  return (
+  const liveRow = (
     <button
       type="button"
       className={cn(
         "group/live-work flex w-full max-w-full cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
         thoughtLine ? "flex-col items-start" : "min-h-6 items-center",
+        backgroundableCommand && "min-w-0",
       )}
       aria-label={
         failed
@@ -655,6 +673,46 @@ export function LiveWorkEntryTimelineRow({
         active={row.active}
       />
     </button>
+  );
+  if (backgroundableCommand === null) return liveRow;
+  return (
+    <div className="flex w-full max-w-full items-center gap-3">
+      {liveRow}
+      <BackgroundCommandButton
+        environmentId={ctx.activeThreadEnvironmentId}
+        threadId={backgroundableCommand.threadId}
+        itemId={backgroundableCommand.id}
+      />
+    </div>
+  );
+}
+
+function BackgroundCommandButton(props: {
+  environmentId: EnvironmentId;
+  threadId: ThreadId;
+  itemId: TurnItemId;
+}) {
+  const allowed = useAtomValue(
+    orchestrationEnvironment.backgroundCommand.permissionAtom(props.environmentId),
+  );
+  const backgroundCommand = useAtomCommand(orchestrationEnvironment.backgroundCommand);
+  const [pending, setPending] = useState(false);
+  if (!allowed) return null;
+  const run = async () => {
+    setPending(true);
+    const result = await backgroundCommand({
+      environmentId: props.environmentId,
+      input: { threadId: props.threadId, itemId: props.itemId },
+    });
+    setPending(false);
+    if (result._tag === "Failure") {
+      toastManager.add({ type: "error", title: "Could not move the command to the background" });
+    }
+  };
+  return (
+    <InlineButton tone="muted" disabled={pending} onClick={() => void run()}>
+      Run in background
+    </InlineButton>
   );
 }
 
