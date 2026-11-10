@@ -207,6 +207,7 @@ describe("command permissions", () => {
   it.effect.each([
     WS_METHODS.scheduledTasksDelete,
     ORCHESTRATION_V2_WS_METHODS.stopWorkflow,
+    ORCHESTRATION_V2_WS_METHODS.backgroundCommand,
     WS_METHODS.boardUpdateItem,
     WS_METHODS.boardDeleteItem,
     WS_METHODS.boardSetWatch,
