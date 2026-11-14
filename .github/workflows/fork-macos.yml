@@ -2,7 +2,7 @@ name: Fork macOS build
 
 # Builds the fork branch into an ad-hoc signed Apple silicon DMG and publishes
 # it as the latest GitHub release. The `-preview.` version leaves the build
-# without an update feed, so the app never updates itself onto upstream.
+# without upstream's update feed; ForkUpdater updates the app from these releases.
 
 on:
   push:
