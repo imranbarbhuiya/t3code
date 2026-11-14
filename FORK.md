@@ -38,14 +38,20 @@ and `vp run check:changed` runs them with it.
 ## Build and install
 
 Every push to `fork` runs `.github/workflows/fork-macos.yml`, which publishes an
-ad-hoc signed DMG as the latest release and keeps the five newest. The
-`-preview.` version means no update feed, so the app never updates itself.
+ad-hoc signed DMG as the latest release and keeps the five newest.
+
+The app updates itself from those releases. electron-updater cannot install on
+macOS without a Developer ID signature, so `apps/desktop/src/electron/ForkUpdater.ts`
+replaces it: it reads the fork's releases, shows upstream's nightly notes since
+the installed build, downloads the DMG, and swaps the bundle from a helper
+script after the app quits (log: `$TMPDIR/t3code-fork-install.log`).
 
 When GitHub has no macOS runner free, `scripts/fork/build-local.sh` builds
 `origin/fork` on this Mac in a throwaway worktree and publishes the same kind
 of release.
 
-Install or update with `scripts/fork/install.sh` from Terminal. It quits
+Install the first fork build, or recover a broken one, with
+`scripts/fork/install.sh` from Terminal. It quits
 T3 Code, replaces `/Applications/T3 Code (Beta).app`, clears the quarantine
 flag, and signs the bundle ad hoc.
 State is shared with the official app (`~/.t3`), so switching back is just
