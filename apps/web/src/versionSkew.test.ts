@@ -2,7 +2,13 @@ import { EnvironmentId } from "@t3tools/contracts";
 import type { ServerUpdateState } from "@t3tools/client-runtime/state/server";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const branding = vi.hoisted(() => ({ APP_VERSION: "0.0.34" }));
+const branding = vi.hoisted(() => ({
+  APP_VERSION: "0.0.34",
+  UPSTREAM_VERSION: "",
+  get SERVER_TARGET_VERSION() {
+    return this.UPSTREAM_VERSION || this.APP_VERSION;
+  },
+}));
 vi.mock("./branding", () => branding);
 
 import { APP_VERSION } from "./branding";
@@ -44,6 +50,7 @@ describe("versionSkew", () => {
   });
   beforeEach(() => {
     branding.APP_VERSION = "0.0.34";
+    branding.UPSTREAM_VERSION = "";
   });
 
   it("dismisses only the current failed attempt without clearing its retry state", () => {
@@ -72,6 +79,16 @@ describe("versionSkew", () => {
       serverVersion: "0.0.33",
       hint: MISMATCH_HINT,
     });
+  });
+
+  it("targets the upstream release a fork build is on, except for the fork's own server", () => {
+    branding.APP_VERSION = "0.0.33-preview.20260824.17";
+    branding.UPSTREAM_VERSION = "0.0.34-nightly.20260824.1124";
+    expect(resolveVersionMismatch("0.0.34-nightly.20260823.1100")?.clientVersion).toBe(
+      "0.0.34-nightly.20260824.1124",
+    );
+    expect(resolveVersionMismatch("0.0.34-nightly.20260824.1124")).toBeNull();
+    expect(resolveVersionMismatch("0.0.33-preview.20260824.17")).toBeNull();
   });
 
   it("does not warn when the server is ahead of the client", () => {

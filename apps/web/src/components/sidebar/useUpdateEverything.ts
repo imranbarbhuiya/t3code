@@ -2,7 +2,7 @@ import { msg, useMessages } from "gt-react";
 import { useAtomValue } from "@effect/atom-react";
 import { PROVIDER_DISPLAY_NAMES } from "@t3tools/contracts";
 
-import { APP_VERSION } from "~/branding";
+import { APP_VERSION, SERVER_TARGET_VERSION } from "~/branding";
 import { isDesktopLocalConnectionTarget } from "~/connection/desktopLocal";
 import { isElectron } from "~/env";
 import { useEnvironments } from "~/state/environments";
@@ -71,7 +71,11 @@ export function useUpdateEverything(
   }));
   const { targets: servers, skipped } = channelSwitch
     ? collectChannelSwitchTargets(machines, channelSwitch, resolve)
-    : collectServerUpdateTargets(machines, targetVersion, resolve);
+    : collectServerUpdateTargets(
+        machines,
+        SERVER_TARGET_VERSION === APP_VERSION ? targetVersion : SERVER_TARGET_VERSION,
+        resolve,
+      );
   // Track-only hosts save a setting and restart nothing, so they are neither listed nor counted.
   const moving = servers.filter((server) => server.trackOnly !== true);
   const restarts = collectRestartingMachines(machines, moving, localUpdateVersion !== null);
