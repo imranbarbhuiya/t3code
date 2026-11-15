@@ -8,7 +8,7 @@ import type { ServerUpdateState } from "@t3tools/client-runtime/state/server";
 import { compareSemverVersions, parseSemver } from "@t3tools/shared/semver";
 import * as Schema from "effect/Schema";
 
-import { APP_VERSION } from "./branding";
+import { APP_VERSION, SERVER_TARGET_VERSION } from "./branding";
 import { getLocalStorageItem, setLocalStorageItem } from "./hooks/useLocalStorage";
 
 export interface VersionMismatch {
@@ -46,11 +46,15 @@ function versionCore(version: string): string {
 
 export function resolveVersionMismatch(
   serverVersion: string | null | undefined,
-  clientVersion: string = APP_VERSION,
+  clientVersion: string = SERVER_TARGET_VERSION,
 ): VersionMismatch | null {
   const normalizedClientVersion = normalizeVersion(clientVersion);
   const normalizedServerVersion = normalizeVersion(serverVersion);
   if (!normalizedClientVersion || !normalizedServerVersion) {
+    return null;
+  }
+  // A fork build's own server runs its fork version, which is not behind the upstream target.
+  if (SERVER_TARGET_VERSION !== APP_VERSION && normalizedServerVersion === APP_VERSION) {
     return null;
   }
 
