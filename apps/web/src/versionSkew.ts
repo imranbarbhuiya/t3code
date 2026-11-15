@@ -9,7 +9,7 @@ import { compareSemverVersions, parseSemver } from "@t3tools/shared/semver";
 import * as Schema from "effect/Schema";
 import { msg } from "gt-react";
 
-import { APP_VERSION } from "./branding";
+import { APP_VERSION, SERVER_TARGET_VERSION } from "./branding";
 import { getLocalStorageItem, setLocalStorageItem } from "./hooks/useLocalStorage";
 import { m, type MessageResolver } from "./i18n/messages";
 
@@ -48,12 +48,16 @@ function versionCore(version: string): string {
 
 export function resolveVersionMismatch(
   serverVersion: string | null | undefined,
-  clientVersion: string = APP_VERSION,
+  clientVersion: string = SERVER_TARGET_VERSION,
   resolve: MessageResolver = m,
 ): VersionMismatch | null {
   const normalizedClientVersion = normalizeVersion(clientVersion);
   const normalizedServerVersion = normalizeVersion(serverVersion);
   if (!normalizedClientVersion || !normalizedServerVersion) {
+    return null;
+  }
+  // A fork build's own server runs its fork version, which is not behind the upstream target.
+  if (SERVER_TARGET_VERSION !== APP_VERSION && normalizedServerVersion === APP_VERSION) {
     return null;
   }
 
@@ -86,7 +90,11 @@ export function resolveServerConfigVersionMismatch(
   serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
   resolve: MessageResolver = m,
 ): VersionMismatch | null {
-  return resolveVersionMismatch(serverConfig?.environment.serverVersion, APP_VERSION, resolve);
+  return resolveVersionMismatch(
+    serverConfig?.environment.serverVersion,
+    SERVER_TARGET_VERSION,
+    resolve,
+  );
 }
 
 export function resolveServerSelfUpdateCapability(

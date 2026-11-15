@@ -49,6 +49,8 @@ jobs:
       - name: Set version and public T3 Connect configuration
         id: version
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           base="$(node -p "require('./apps/desktop/package.json').version")"
@@ -56,6 +58,17 @@ jobs:
           node scripts/update-release-package-versions.ts "$version"
           cp .env.example .env
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Other servers can't install the fork's version, so the app updates them to the newest
+          # upstream nightly this build contains.
+          merge_base="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" --jq '.merge_base_commit.sha')"
+          upstream_version=""
+          for tag in $(gh api "repos/pingdotgg/t3code/releases?per_page=30" \
+            --jq '.[] | select(.draft | not) | .tag_name | select(test("^v[0-9.]+-nightly\\.[0-9]{8}\\.[0-9]+$"))'); do
+            status="$(gh api "repos/pingdotgg/t3code/compare/${tag}...${merge_base}" --jq .status)"
+            if [[ "$status" == ahead || "$status" == identical ]]; then upstream_version="${tag#v}"; break; fi
+          done
+          echo "Upstream nightly: ${upstream_version:-none}"
+          echo "T3CODE_UPSTREAM_VERSION=$upstream_version" >> "$GITHUB_ENV"
 
       - name: Build DMG
         env:
@@ -93,6 +106,7 @@ jobs:
           upstream_sha="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" --jq '.merge_base_commit.sha')"
           {
             echo "Upstream: https://github.com/pingdotgg/t3code/commit/${upstream_sha}"
+            echo "Remote servers update to: ${T3CODE_UPSTREAM_VERSION:-this build's version}"
             echo
             echo "Fork commits:"
             gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" \
