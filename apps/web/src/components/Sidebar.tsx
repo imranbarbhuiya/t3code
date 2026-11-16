@@ -179,6 +179,9 @@ import {
 } from "./threadActionMenu.logic";
 import {
   applySidebarThreadDrop,
+  SIDEBAR_THREAD_STATE_FILTERS,
+  threadMatchesStateFilter,
+  type SidebarThreadStateFilter,
   filterSidebarV2VisibleThreads,
   groupSidebarThreadsByProject,
   sidebarFolderExpansionKeys,
@@ -254,6 +257,7 @@ import {
 import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { SidebarHeaderIconButton, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { TooltipProvider } from "./ui/tooltip";
 import {
   composerDraftHasUserContent,
@@ -334,6 +338,14 @@ const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
 const SETTLED_TAIL_INITIAL_COUNT = 10;
 const SETTLED_TAIL_PAGE_COUNT = 25;
 const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar:settled-expanded";
+const THREAD_STATE_FILTER_KEY = "t3code:sidebar:thread-state-filter";
+const ThreadStateFilterSchema = Schema.Literals(SIDEBAR_THREAD_STATE_FILTERS);
+const THREAD_STATE_FILTER_LABELS: Record<SidebarThreadStateFilter, string> = {
+  all: "All",
+  working: "Working",
+  "needs-you": "Needs you",
+  done: "Done",
+};
 const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "t3code:sidebar:working-expanded";
 
@@ -430,6 +442,8 @@ function useSidebarThreads(input: {
   readonly folderGroups: readonly SidebarProjectSnapshot[] | null;
   // Keeps folders with no active threads, so a project the user filtered to or pinned can start one.
   readonly keepEmptyFolders: (group: SidebarProjectSnapshot) => boolean;
+  // Unloaded settled threads can't be checked against a state filter, so they aren't counted.
+  readonly stateFiltered: boolean;
 }) {
   const {
     projectScopeKey,
@@ -442,6 +456,7 @@ function useSidebarThreads(input: {
     routeRowThreadKey,
     folderGroups,
     keepEmptyFolders: keepEmpty,
+    stateFiltered,
   } = input;
   // Folders already separate the work, so boring mode has no Working shelf.
   const workingShelfEnabled =
@@ -504,7 +519,8 @@ function useSidebarThreads(input: {
   const listedSettledThreads = settledThreads.filter(olderSettledShelf.isListed);
   useOlderSettledShelfGrowth(olderSettledShelf, listedSettledThreads);
   const settledCount =
-    settledThreads.length + olderSettledShelf.unloadedCount(partition.visibleThreads);
+    settledThreads.length +
+    (stateFiltered ? 0 : olderSettledShelf.unloadedCount(partition.visibleThreads));
   const visibleSettledThreads = (() => {
     const visible = listedSettledThreads.slice(0, settledVisibleCount);
     if (
@@ -1131,6 +1147,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     findThread: (key) => threads.find((candidate) => threadShellKey(candidate) === key),
   });
   const projectScopeKeys = revealWidensScope ? [] : chosenProjectScopeKeys;
+  const [threadStateFilter, setThreadStateFilter] = useLocalStorage(
+    THREAD_STATE_FILTER_KEY,
+    "all",
+    ThreadStateFilterSchema,
+  );
   const projectScopeKey = projectScopeKeys.length === 0 ? null : projectScopeKeys.join("\n");
   const toggleProjectScopeKey = (key: string) =>
     setProjectScopeKeys(
@@ -1339,7 +1360,15 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     serverConfigs,
     connectedEnvironmentIds,
     optimisticDrop,
-    threads: listedThreads,
+    threads:
+      threadStateFilter === "all"
+        ? listedThreads
+        : listedThreads.filter(
+            (thread) =>
+              threadShellKey(thread) === routeRowThreadKey ||
+              threadMatchesStateFilter(thread, threadStateFilter),
+          ),
+    stateFiltered: threadStateFilter !== "all",
     delegatedUnderParent,
     routeRowThreadKey,
     folderGroups: boringSidebarEnabled
@@ -3011,11 +3040,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   <ComboboxTrigger
                     render={
                       <SidebarHeaderIconButton
-                        label={
+                        label={[
                           scopedProjectGroups.length > 0
                             ? `Filter threads by project: ${scopedProjectGroups.map((project) => project.displayName).join(", ")}`
-                            : "Filter threads by project"
-                        }
+                            : "Filter threads by project",
+                          threadStateFilter === "all"
+                            ? null
+                            : `state: ${THREAD_STATE_FILTER_LABELS[threadStateFilter]}`,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
                       />
                     }
                   >
@@ -3040,6 +3074,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                       </span>
                     ) : (
                       <ListFilterIcon className="size-4" />
+                    )}
+                    {threadStateFilter === "all" ? null : (
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute top-1 right-1 size-1.5 rounded-full bg-primary"
+                      />
                     )}
                   </ComboboxTrigger>
                   {/* Refocusing the trigger after a pointer close shows its focus ring and opens its tooltip. */}
@@ -3096,6 +3136,24 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         })
                       }
                     />
+                    <div className="border-b px-2 py-1.5">
+                      <ToggleGroup
+                        aria-label="Filter threads by state"
+                        value={[threadStateFilter]}
+                        onValueChange={(value) => {
+                          const next = value.at(-1);
+                          setThreadStateFilter(
+                            SIDEBAR_THREAD_STATE_FILTERS.find((filter) => filter === next) ?? "all",
+                          );
+                        }}
+                      >
+                        {SIDEBAR_THREAD_STATE_FILTERS.map((filter) => (
+                          <ToggleGroupItem key={filter} value={filter}>
+                            {THREAD_STATE_FILTER_LABELS[filter]}
+                          </ToggleGroupItem>
+                        ))}
+                      </ToggleGroup>
+                    </div>
                     <ComboboxEmpty>No matching projects.</ComboboxEmpty>
                     <ComboboxList aria-multiselectable>
                       {(item: (typeof projectScopeItems)[number]) => {

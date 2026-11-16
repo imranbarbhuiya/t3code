@@ -1291,6 +1291,27 @@ export function resolveThreadStatusPill(input: {
   return null;
 }
 
+export const SIDEBAR_THREAD_STATE_FILTERS = ["all", "working", "needs-you", "done"] as const;
+export type SidebarThreadStateFilter = (typeof SIDEBAR_THREAD_STATE_FILTERS)[number];
+
+const STATE_FILTER_PILLS: Record<
+  Exclude<SidebarThreadStateFilter, "all">,
+  ReadonlyArray<ThreadStatusPill["label"]>
+> = {
+  working: ["Working", "Connecting", "Waiting"],
+  "needs-you": ["Pending Approval", "Awaiting Input", "Guest Request", "Plan Ready", "Failed"],
+  done: ["Completed"],
+};
+
+export function threadMatchesStateFilter(
+  thread: ThreadStatusInput,
+  filter: SidebarThreadStateFilter,
+): boolean {
+  if (filter === "all") return true;
+  const label = resolveThreadStatusPill({ thread })?.label;
+  return label !== undefined && STATE_FILTER_PILLS[filter].includes(label);
+}
+
 export function getFallbackThreadIdAfterDelete<
   T extends Pick<
     Thread,
