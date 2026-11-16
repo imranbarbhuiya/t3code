@@ -17,6 +17,8 @@ import {
   resolveSidebarRowStatus,
   resolveSidebarThreadStatus,
   resolveThreadStatusPill,
+  SIDEBAR_THREAD_STATE_FILTERS,
+  threadMatchesStateFilter,
   resolveWindowTitleThreadStatus,
   resolveWorkingStartedAt,
   searchSidebarThreads,
@@ -449,6 +451,22 @@ describe("resolveThreadStatusPill", () => {
       label: "Working",
       pulse: true,
     });
+  });
+
+  it("filters threads by the state their pill shows", () => {
+    const idle = { ...baseThread, runtime: { ...baseThread.runtime, status: "idle" as const } };
+    const blocked = { ...baseThread, blockedOnThreadWait: true };
+    const asking = { ...idle, hasPendingUserInput: true };
+    for (const [thread, matches] of [
+      [baseThread, ["all", "working"]],
+      [blocked, ["all", "working"]],
+      [asking, ["all", "needs-you"]],
+      [idle, ["all"]],
+    ] as const) {
+      expect(
+        SIDEBAR_THREAD_STATE_FILTERS.filter((filter) => threadMatchesStateFilter(thread, filter)),
+      ).toEqual(matches);
+    }
   });
 
   it("shows waiting for an idle thread with pending background tasks", () => {
