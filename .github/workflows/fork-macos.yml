@@ -106,7 +106,7 @@ jobs:
           upstream_sha="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" --jq '.merge_base_commit.sha')"
           {
             echo "Upstream: https://github.com/pingdotgg/t3code/commit/${upstream_sha}"
-            echo "Remote servers update to: ${T3CODE_UPSTREAM_VERSION:-this build's version}"
+            echo "Remote servers update to: ${T3CODE_UPSTREAM_VERSION:-the same version as this build}"
             echo
             echo "Fork commits:"
             gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" \
